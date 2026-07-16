@@ -7,6 +7,13 @@ from typing import Any, Iterable, Mapping
 
 
 DEFAULT_DB_PATH = Path(__file__).with_name("chatlist.db")
+DEFAULT_SETTINGS: dict[str, str] = {
+    "system_prompt": "",
+    "temperature": "0.7",
+    "request_timeout": "60",
+    "window_width": "1400",
+    "window_height": "900",
+}
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS prompts (
@@ -69,6 +76,7 @@ class Database:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
             connection.executescript(SCHEMA_SQL)
+        self.ensure_default_settings()
 
     def _fetch_one(
         self, query: str, parameters: Iterable[Any] = ()
@@ -120,6 +128,18 @@ class Database:
             VALUES (?, ?, ?)
             """,
             (timestamp, prompt_text, tags),
+        )
+
+    def get_prompt_by_text(self, prompt_text: str) -> dict[str, Any] | None:
+        return self._fetch_one(
+            """
+            SELECT id, created_at, prompt_text, tags
+            FROM prompts
+            WHERE prompt_text = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (prompt_text,),
         )
 
     def list_prompts(
@@ -185,16 +205,29 @@ class Database:
             (name, api_url, api_id, api_key_env, int(is_active)),
         )
 
-    def list_models(self, active_only: bool | None = None) -> list[dict[str, Any]]:
+    def list_models(
+        self, active_only: bool | None = None, search: str | None = None
+    ) -> list[dict[str, Any]]:
         query = """
             SELECT id, name, api_url, api_id, api_key_env, is_active
             FROM models
         """
+        filters: list[str] = []
         parameters: list[Any] = []
 
         if active_only is not None:
-            query += " WHERE is_active = ?"
+            filters.append("is_active = ?")
             parameters.append(int(active_only))
+
+        if search:
+            filters.append(
+                "(name LIKE ? OR api_url LIKE ? OR api_id LIKE ? OR api_key_env LIKE ?)"
+            )
+            like_value = f"%{search}%"
+            parameters.extend([like_value, like_value, like_value, like_value])
+
+        if filters:
+            query += " WHERE " + " AND ".join(filters)
 
         query += " ORDER BY name ASC"
         return self._fetch_all(query, parameters)
@@ -274,7 +307,11 @@ class Database:
         return result_ids
 
     def list_results(
-        self, prompt_id: int | None = None, model_id: int | None = None
+        self,
+        prompt_id: int | None = None,
+        model_id: int | None = None,
+        search: str | None = None,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         query = """
             SELECT
@@ -300,23 +337,43 @@ class Database:
             filters.append("results.model_id = ?")
             parameters.append(model_id)
 
+        if search:
+            filters.append(
+                "("
+                "prompts.prompt_text LIKE ? OR "
+                "models.name LIKE ? OR "
+                "results.response_text LIKE ?"
+                ")"
+            )
+            like_value = f"%{search}%"
+            parameters.extend([like_value, like_value, like_value])
+
         if filters:
             query += " WHERE " + " AND ".join(filters)
 
         query += " ORDER BY results.saved_at DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            parameters.append(limit)
         return self._fetch_all(query, parameters)
 
     def delete_result(self, result_id: int) -> None:
         self._execute("DELETE FROM results WHERE id = ?", (result_id,))
 
-    def list_settings(self) -> list[dict[str, Any]]:
-        return self._fetch_all(
-            """
+    def list_settings(self, search: str | None = None) -> list[dict[str, Any]]:
+        query = """
             SELECT id, key, value, updated_at
             FROM settings
-            ORDER BY key ASC
-            """
-        )
+        """
+        parameters: list[Any] = []
+
+        if search:
+            query += " WHERE key LIKE ? OR COALESCE(value, '') LIKE ?"
+            like_value = f"%{search}%"
+            parameters.extend([like_value, like_value])
+
+        query += " ORDER BY key ASC"
+        return self._fetch_all(query, parameters)
 
     def get_setting(self, key: str, default: str | None = None) -> str | None:
         record = self._fetch_one(
@@ -348,3 +405,18 @@ class Database:
 
     def delete_setting(self, key: str) -> None:
         self._execute("DELETE FROM settings WHERE key = ?", (key,))
+
+    def ensure_default_settings(
+        self, defaults: Mapping[str, str] = DEFAULT_SETTINGS
+    ) -> None:
+        with self.connect() as connection:
+            for key, value in defaults.items():
+                connection.execute(
+                    """
+                    INSERT INTO settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO NOTHING
+                    """,
+                    (key, value, utc_now_iso()),
+                )
+            connection.commit()

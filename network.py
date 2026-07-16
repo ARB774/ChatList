@@ -74,7 +74,7 @@ class NetworkClient:
                 error_text="The 'requests' package is not installed.",
             )
 
-        api_key = os.getenv(model.api_key_env)
+        api_key = self._resolve_api_key(model)
         if not api_key:
             return NetworkResult(
                 model=model,
@@ -90,7 +90,7 @@ class NetworkClient:
             system_prompt=system_prompt,
             temperature=temperature,
         )
-        headers = self._build_headers(api_key)
+        headers = self._build_headers(model.api_url, api_key)
 
         try:
             response = requests.post(
@@ -165,11 +165,15 @@ class NetworkClient:
         ]
 
     @staticmethod
-    def _build_headers(api_key: str) -> dict[str, str]:
-        return {
+    def _build_headers(api_url: str, api_key: str) -> dict[str, str]:
+        headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        if "openrouter.ai" in api_url:
+            headers["HTTP-Referer"] = "https://github.com/ARB774/ChatList"
+            headers["X-Title"] = "ChatList"
+        return headers
 
     @staticmethod
     def _extract_error_text(data: Any) -> str | None:
@@ -218,5 +222,31 @@ class NetworkClient:
         response_text = data.get("response")
         if isinstance(response_text, str):
             return response_text.strip()
+
+        return None
+
+    @staticmethod
+    def _resolve_api_key(model: ModelConfig) -> str | None:
+        direct_key = os.getenv(model.api_key_env)
+        if direct_key:
+            return direct_key
+
+        aliases: list[str] = []
+        normalized_name = model.name.lower()
+        normalized_url = model.api_url.lower()
+
+        if "openrouter" in normalized_name or "openrouter" in normalized_url:
+            aliases.extend(["OPENROUTER_API_KEY", "OPEN_ROUTER_API_KEY"])
+        if "openai" in normalized_name or "openai.com" in normalized_url:
+            aliases.append("OPENAI_API_KEY")
+        if "deepseek" in normalized_name or "deepseek.com" in normalized_url:
+            aliases.append("DEEPSEEK_API_KEY")
+        if "groq" in normalized_name or "groq.com" in normalized_url:
+            aliases.append("GROQ_API_KEY")
+
+        for alias in aliases:
+            api_key = os.getenv(alias)
+            if api_key:
+                return api_key
 
         return None
