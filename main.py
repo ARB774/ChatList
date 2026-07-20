@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from PyQt5.QtCore import QThread, Qt, pyqtSignal
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
@@ -44,6 +46,7 @@ from network import NetworkClient, NetworkResult, get_env_search_paths
 
 LOGS_DIR = get_app_base_dir() / "logs"
 LOG_FILE = LOGS_DIR / "chatlist.log"
+APP_VERSION = "1.0"
 
 
 @dataclass(slots=True)
@@ -132,6 +135,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("ChatList")
         self._setup_ui()
+        self.apply_appearance_settings()
         self._setup_window_size()
         self._ensure_initial_data()
         self.refresh_all_views()
@@ -480,6 +484,18 @@ class MainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        appearance_group = QGroupBox("Внешний вид")
+        appearance_layout = QFormLayout(appearance_group)
+        self.theme_input = QComboBox()
+        self.theme_input.addItem("Светлая", "light")
+        self.theme_input.addItem("Тёмная", "dark")
+        appearance_layout.addRow("Тема", self.theme_input)
+
+        self.ui_font_size_input = QSpinBox()
+        self.ui_font_size_input.setRange(8, 24)
+        appearance_layout.addRow("Размер шрифта", self.ui_font_size_input)
+        layout.addWidget(appearance_group)
+
         quick_group = QGroupBox("Базовые настройки")
         quick_layout = QFormLayout(quick_group)
         self.system_prompt_input = QPlainTextEdit()
@@ -502,6 +518,10 @@ class MainWindow(QMainWindow):
         save_settings_button = QPushButton("Сохранить настройки")
         save_settings_button.clicked.connect(self.save_base_settings)
         settings_buttons.addWidget(save_settings_button)
+
+        about_button = QPushButton("О программе")
+        about_button.clicked.connect(self.show_about_dialog)
+        settings_buttons.addWidget(about_button)
 
         reset_settings_button = QPushButton("Сбросить по умолчанию")
         reset_settings_button.clicked.connect(self.reset_base_settings)
@@ -606,6 +626,76 @@ class MainWindow(QMainWindow):
             return int(float(self.database.get_setting(key, str(default)) or default))
         except ValueError:
             return default
+
+    def get_theme_setting(self) -> str:
+        theme = (self.database.get_setting("app_theme", DEFAULT_SETTINGS["app_theme"]) or "").strip().lower()
+        if theme in {"light", "dark"}:
+            return theme
+        return DEFAULT_SETTINGS["app_theme"]
+
+    def build_theme_stylesheet(self, theme: str) -> str:
+        if theme != "dark":
+            return ""
+        return """
+QWidget {
+    background-color: #1f1f1f;
+    color: #f0f0f0;
+}
+QMainWindow, QDialog, QTabWidget::pane, QGroupBox, QPlainTextEdit, QTextBrowser,
+QLineEdit, QTableWidget, QHeaderView::section, QComboBox, QSpinBox, QDoubleSpinBox {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+}
+QPushButton {
+    background-color: #355e3b;
+    color: #f0f0f0;
+    border: 1px solid #4f8157;
+    padding: 4px 10px;
+}
+QPushButton:hover {
+    background-color: #427449;
+}
+QTabBar::tab {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    padding: 6px 10px;
+}
+QTabBar::tab:selected {
+    background-color: #355e3b;
+}
+QHeaderView::section {
+    border: 1px solid #444444;
+}
+"""
+
+    def apply_appearance_settings(
+        self,
+        theme: str | None = None,
+        font_size: int | None = None,
+    ) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+
+        resolved_theme = theme or self.get_theme_setting()
+        resolved_font_size = font_size or self.get_int_setting(
+            "ui_font_size", int(DEFAULT_SETTINGS["ui_font_size"])
+        )
+
+        app.setStyleSheet(self.build_theme_stylesheet(resolved_theme))
+        current_font = QFont(app.font())
+        current_font.setPointSize(max(8, resolved_font_size))
+        app.setFont(current_font)
+
+    def show_about_dialog(self) -> None:
+        about_text = (
+            f"ChatList {APP_VERSION}\n\n"
+            "Приложение отправляет один и тот же промт в несколько нейросетей, "
+            "показывает ответы в общей таблице и сохраняет выбранные результаты в SQLite.\n\n"
+            f"База данных: {self.database.db_path}\n"
+            f"Логи: {LOG_FILE}"
+        )
+        QMessageBox.about(self, "О программе", about_text)
 
     def get_selected_prompt_record(self) -> dict[str, Any] | None:
         row = self.prompts_table.currentRow()
@@ -1368,6 +1458,13 @@ class MainWindow(QMainWindow):
         self.show_status(f"Тест подключения неуспешен для {model.name}: {result.status}.")
 
     def load_base_settings(self) -> None:
+        theme = self.get_theme_setting()
+        theme_index = self.theme_input.findData(theme)
+        if theme_index >= 0:
+            self.theme_input.setCurrentIndex(theme_index)
+        self.ui_font_size_input.setValue(
+            self.get_int_setting("ui_font_size", int(DEFAULT_SETTINGS["ui_font_size"]))
+        )
         self.system_prompt_input.setPlainText(
             self.database.get_setting("system_prompt", DEFAULT_SETTINGS["system_prompt"])
             or ""
@@ -1378,14 +1475,20 @@ class MainWindow(QMainWindow):
         self.timeout_input.setValue(
             self.get_int_setting("request_timeout", int(DEFAULT_SETTINGS["request_timeout"]))
         )
+        self.apply_appearance_settings(theme=theme, font_size=self.ui_font_size_input.value())
 
     def save_base_settings(self) -> None:
+        theme = self.theme_input.currentData() or DEFAULT_SETTINGS["app_theme"]
+        font_size = self.ui_font_size_input.value()
+        self.database.set_setting("app_theme", str(theme))
+        self.database.set_setting("ui_font_size", str(font_size))
         self.database.set_setting("system_prompt", self.system_prompt_input.toPlainText())
         self.database.set_setting("temperature", str(self.temperature_input.value()))
         self.database.set_setting("request_timeout", str(self.timeout_input.value()))
         self.database.set_setting("window_width", str(self.width()))
         self.database.set_setting("window_height", str(self.height()))
         self.network_client.timeout = float(self.timeout_input.value())
+        self.apply_appearance_settings(theme=str(theme), font_size=font_size)
         self.refresh_settings_table()
         self.show_status("Базовые настройки сохранены.")
 
@@ -1438,7 +1541,13 @@ class MainWindow(QMainWindow):
             return
         self.database.set_setting(key, value)
         self.refresh_settings_table()
-        if key in {"system_prompt", "temperature", "request_timeout"}:
+        if key in {
+            "app_theme",
+            "ui_font_size",
+            "system_prompt",
+            "temperature",
+            "request_timeout",
+        }:
             self.load_base_settings()
         self.show_status(f"Сохранена настройка: {key}.")
 

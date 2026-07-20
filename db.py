@@ -15,6 +15,8 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "request_timeout": "60",
     "window_width": "1400",
     "window_height": "900",
+    "app_theme": "light",
+    "ui_font_size": "10",
 }
 
 SCHEMA_SQL = """

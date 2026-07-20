@@ -49,17 +49,17 @@ for icon in icons:
 # сохранение цветов и избегает автоматической конвертации в градации серого
 try:
     rgb_icons[0].save(
-        "app.ico",
+        "app_green.ico",
         format="ICO",
         sizes=sizes,
         append_images=rgb_icons[1:],
     )
-    print("✅ Иконка 'app.ico' создана!")
+    print("✅ Иконка 'app_green.ico' создана!")
     print("   Дизайн: зелёный круг на тёмно-зелёном квадрате")
     print("   Цвета: тёмно-зелёный фон (ForestGreen), светло-зелёный круг (LimeGreen)")
 except Exception as e:
     print(f"❌ Ошибка при сохранении: {e}")
     # Альтернативный способ - сохранить каждое изображение отдельно
     print("Попытка альтернативного метода сохранения...")
-    rgb_icons[0].save("app.ico", format="ICO")
-    print("✅ Иконка 'app.ico' создана (только один размер)")
+    rgb_icons[0].save("app_green.ico", format="ICO")
+    print("✅ Иконка 'app_green.ico' создана (только один размер)")
