@@ -11,6 +11,7 @@ from PyQt5.QtCore import QThread, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
+    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -29,6 +30,7 @@ from PyQt5.QtWidgets import (
     QStatusBar,
     QTableWidget,
     QTableWidgetItem,
+    QTextBrowser,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -288,6 +290,15 @@ class MainWindow(QMainWindow):
 
         runtime_preview_group = QGroupBox("Предпросмотр ответа")
         runtime_preview_layout = QVBoxLayout(runtime_preview_group)
+        runtime_preview_actions = QHBoxLayout()
+        runtime_preview_actions.addStretch(1)
+        self.open_runtime_markdown_button = QPushButton("Открыть")
+        self.open_runtime_markdown_button.clicked.connect(
+            self.open_runtime_preview_markdown
+        )
+        self.open_runtime_markdown_button.setEnabled(False)
+        runtime_preview_actions.addWidget(self.open_runtime_markdown_button)
+        runtime_preview_layout.addLayout(runtime_preview_actions)
         self.runtime_preview = QPlainTextEdit()
         self.runtime_preview.setReadOnly(True)
         self.runtime_preview.setPlaceholderText(
@@ -349,6 +360,13 @@ class MainWindow(QMainWindow):
 
         saved_preview_group = QGroupBox("Предпросмотр ответа")
         saved_preview_layout = QVBoxLayout(saved_preview_group)
+        saved_preview_actions = QHBoxLayout()
+        saved_preview_actions.addStretch(1)
+        self.open_saved_markdown_button = QPushButton("Открыть")
+        self.open_saved_markdown_button.clicked.connect(self.open_saved_preview_markdown)
+        self.open_saved_markdown_button.setEnabled(False)
+        saved_preview_actions.addWidget(self.open_saved_markdown_button)
+        saved_preview_layout.addLayout(saved_preview_actions)
         self.saved_preview = QPlainTextEdit()
         self.saved_preview.setReadOnly(True)
         self.saved_preview.setPlaceholderText(
@@ -803,6 +821,7 @@ class MainWindow(QMainWindow):
         result = self.get_selected_runtime_result()
         if result is None:
             self.runtime_preview.clear()
+            self.open_runtime_markdown_button.setEnabled(False)
             return
 
         parts = [
@@ -812,6 +831,29 @@ class MainWindow(QMainWindow):
             result.display_text,
         ]
         self.runtime_preview.setPlainText("\n".join(parts))
+        self.open_runtime_markdown_button.setEnabled(True)
+
+    def open_runtime_preview_markdown(self) -> None:
+        result = self.get_selected_runtime_result()
+        if result is None:
+            QMessageBox.information(self, "ChatList", "Выберите результат для открытия.")
+            return
+
+        markdown_text = "\n".join(
+            [
+                f"# {result.model_name}",
+                "",
+                f"- Статус: {result.status}",
+                "",
+                "## Ответ",
+                "",
+                result.display_text,
+            ]
+        )
+        self.open_markdown_dialog(
+            title=f"Ответ: {result.model_name}",
+            markdown_text=markdown_text,
+        )
 
     def export_runtime_results(self, export_format: str) -> None:
         selected_results = [
@@ -883,6 +925,7 @@ class MainWindow(QMainWindow):
         record = self.get_current_saved_record()
         if record is None:
             self.saved_preview.clear()
+            self.open_saved_markdown_button.setEnabled(False)
             return
 
         parts = [
@@ -896,6 +939,52 @@ class MainWindow(QMainWindow):
             record.get("response_text", ""),
         ]
         self.saved_preview.setPlainText("\n".join(parts))
+        self.open_saved_markdown_button.setEnabled(True)
+
+    def open_saved_preview_markdown(self) -> None:
+        record = self.get_current_saved_record()
+        if record is None:
+            QMessageBox.information(
+                self, "ChatList", "Выберите сохранённый результат для открытия."
+            )
+            return
+
+        markdown_text = "\n".join(
+            [
+                f"# {record.get('model_name', 'Результат')}",
+                "",
+                f"- Дата: {record.get('saved_at', '')}",
+                "",
+                "## Промт",
+                "",
+                record.get("prompt_text", ""),
+                "",
+                "## Ответ",
+                "",
+                record.get("response_text", ""),
+            ]
+        )
+        self.open_markdown_dialog(
+            title=f"Сохранённый ответ: {record.get('model_name', '')}",
+            markdown_text=markdown_text,
+        )
+
+    def open_markdown_dialog(self, title: str, markdown_text: str) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.resize(960, 720)
+
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setOpenExternalLinks(True)
+        browser.setMarkdown(markdown_text)
+        layout.addWidget(browser)
+
+        close_button = QPushButton("Закрыть", dialog)
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button)
+
+        dialog.exec_()
 
     def export_saved_results(self, export_format: str) -> None:
         records = self.get_selected_saved_records()
