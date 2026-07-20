@@ -73,6 +73,20 @@ DEFAULT_MODEL_CATALOG: tuple[ModelConfig, ...] = (
         is_active=True,
     ),
     ModelConfig(
+        name="Tencent: Hy3",
+        api_url="https://openrouter.ai/api/v1/chat/completions",
+        api_id="tencent/hy3:free",
+        api_key_env="OPENROUTER_API_KEY",
+        is_active=False,
+    ),
+    ModelConfig(
+        name="Cohere: North Mini Code",
+        api_url="https://openrouter.ai/api/v1/chat/completions",
+        api_id="cohere/north-mini-code:free",
+        api_key_env="OPENROUTER_API_KEY",
+        is_active=False,
+    ),
+    ModelConfig(
         name="Hugging Face Chat",
         api_url="https://router.huggingface.co/v1/chat/completions",
         api_id="meta-llama/Llama-3.1-8B-Instruct",
