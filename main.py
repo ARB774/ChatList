@@ -247,6 +247,16 @@ class MainWindow(QMainWindow):
         self.new_prompt_button = QPushButton("Новый промт")
         self.new_prompt_button.clicked.connect(self.clear_prompt_form)
         prompts_action_layout.addWidget(self.new_prompt_button)
+        self.add_prompt_button = QPushButton("Добавить")
+        self.add_prompt_button.clicked.connect(self.create_prompt_from_form)
+        prompts_action_layout.addWidget(self.add_prompt_button)
+        self.update_prompt_button = QPushButton("Обновить")
+        self.update_prompt_button.clicked.connect(self.update_selected_prompt)
+        prompts_action_layout.addWidget(self.update_prompt_button)
+        self.delete_prompt_button = QPushButton("Удалить")
+        self.delete_prompt_button.clicked.connect(self.delete_selected_prompt)
+        prompts_action_layout.addWidget(self.delete_prompt_button)
+        prompts_action_layout.addStretch(1)
         prompts_layout.addLayout(prompts_action_layout)
 
         results_panel = QWidget()
@@ -625,6 +635,70 @@ class MainWindow(QMainWindow):
         self.runtime_results = []
         self.refresh_runtime_results_table()
         self.show_status("Форма промта очищена.")
+
+    def create_prompt_from_form(self) -> None:
+        prompt_text = self.prompt_input.toPlainText().strip()
+        tags = self.tags_input.text().strip()
+        if not prompt_text:
+            QMessageBox.warning(self, "ChatList", "Введите текст промта.")
+            return
+
+        prompt_id = self.database.create_prompt(prompt_text=prompt_text, tags=tags or None)
+        self.current_prompt_id = prompt_id
+        self.current_prompt_label.setText(f"Текущий промт: #{prompt_id}")
+        self.refresh_prompts_table()
+        self.show_status(f"Промт #{prompt_id} добавлен.")
+
+    def update_selected_prompt(self) -> None:
+        record = self.get_selected_prompt_record()
+        prompt_id = (
+            int(record["id"])
+            if record is not None
+            else self.current_prompt_id
+        )
+        if prompt_id is None:
+            QMessageBox.information(
+                self, "ChatList", "Выберите промт в таблице или загрузите его в форму."
+            )
+            return
+
+        prompt_text = self.prompt_input.toPlainText().strip()
+        tags = self.tags_input.text().strip()
+        if not prompt_text:
+            QMessageBox.warning(self, "ChatList", "Введите текст промта.")
+            return
+
+        self.database.update_prompt(prompt_id, prompt_text=prompt_text, tags=tags or None)
+        self.current_prompt_id = prompt_id
+        self.current_prompt_label.setText(f"Текущий промт: #{prompt_id}")
+        self.refresh_prompts_table()
+        self.show_status(f"Промт #{prompt_id} обновлён.")
+
+    def delete_selected_prompt(self) -> None:
+        record = self.get_selected_prompt_record()
+        prompt_id = (
+            int(record["id"])
+            if record is not None
+            else self.current_prompt_id
+        )
+        if prompt_id is None:
+            QMessageBox.information(self, "ChatList", "Выберите промт для удаления.")
+            return
+
+        confirmation = QMessageBox.question(
+            self,
+            "ChatList",
+            f"Удалить промт #{prompt_id}? Связанные сохранённые результаты тоже будут удалены.",
+        )
+        if confirmation != QMessageBox.Yes:
+            return
+
+        self.database.delete_prompt(prompt_id)
+        if self.current_prompt_id == prompt_id:
+            self.clear_prompt_form()
+        self.refresh_prompts_table()
+        self.refresh_saved_results_table()
+        self.show_status(f"Промт #{prompt_id} удалён.")
 
     def resolve_prompt_id(self, prompt_text: str, tags: str) -> int:
         existing_prompt = self.database.get_prompt_by_text(prompt_text)
