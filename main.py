@@ -273,11 +273,29 @@ class MainWindow(QMainWindow):
         self.runtime_results_table.setSortingEnabled(True)
         self.runtime_results_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.runtime_results_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.runtime_results_table.setWordWrap(True)
+        self.runtime_results_table.setTextElideMode(Qt.ElideNone)
+        self.runtime_results_table.verticalHeader().setDefaultSectionSize(72)
+        self.runtime_results_table.verticalHeader().setMinimumSectionSize(56)
         self.runtime_results_table.itemChanged.connect(self.on_runtime_result_changed)
+        self.runtime_results_table.itemSelectionChanged.connect(
+            self.update_runtime_preview
+        )
         self.runtime_results_table.horizontalHeader().setSectionResizeMode(
             3, QHeaderView.Stretch
         )
-        results_layout.addWidget(self.runtime_results_table)
+        results_layout.addWidget(self.runtime_results_table, 1)
+
+        runtime_preview_group = QGroupBox("Предпросмотр ответа")
+        runtime_preview_layout = QVBoxLayout(runtime_preview_group)
+        self.runtime_preview = QPlainTextEdit()
+        self.runtime_preview.setReadOnly(True)
+        self.runtime_preview.setPlaceholderText(
+            "Выберите строку результата, чтобы увидеть полный ответ."
+        )
+        self.runtime_preview.setMinimumHeight(180)
+        runtime_preview_layout.addWidget(self.runtime_preview)
+        results_layout.addWidget(runtime_preview_group)
 
         splitter.addWidget(prompts_panel)
         splitter.addWidget(results_panel)
@@ -318,11 +336,27 @@ class MainWindow(QMainWindow):
         self.saved_results_table.setSelectionMode(QTableWidget.MultiSelection)
         self.saved_results_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.saved_results_table.setSortingEnabled(True)
+        self.saved_results_table.setWordWrap(True)
+        self.saved_results_table.setTextElideMode(Qt.ElideNone)
+        self.saved_results_table.verticalHeader().setDefaultSectionSize(72)
+        self.saved_results_table.verticalHeader().setMinimumSectionSize(56)
+        self.saved_results_table.itemSelectionChanged.connect(self.update_saved_preview)
         self.saved_results_table.setColumnHidden(0, True)
         self.saved_results_table.horizontalHeader().setSectionResizeMode(
             4, QHeaderView.Stretch
         )
-        layout.addWidget(self.saved_results_table)
+        layout.addWidget(self.saved_results_table, 1)
+
+        saved_preview_group = QGroupBox("Предпросмотр ответа")
+        saved_preview_layout = QVBoxLayout(saved_preview_group)
+        self.saved_preview = QPlainTextEdit()
+        self.saved_preview.setReadOnly(True)
+        self.saved_preview.setPlaceholderText(
+            "Выберите сохранённый результат, чтобы увидеть полный ответ."
+        )
+        self.saved_preview.setMinimumHeight(220)
+        saved_preview_layout.addWidget(self.saved_preview)
+        layout.addWidget(saved_preview_group)
 
         self.tabs.addTab(tab, "Сохраненные")
 
@@ -746,8 +780,38 @@ class MainWindow(QMainWindow):
             self.runtime_results_table.setItem(row_index, 1, model_item)
             self.runtime_results_table.setItem(row_index, 2, status_item)
             self.runtime_results_table.setItem(row_index, 3, response_item)
+        self.runtime_results_table.resizeRowsToContents()
         self.runtime_results_table.setSortingEnabled(True)
         self._results_table_updating = False
+        self.update_runtime_preview()
+
+    def get_selected_runtime_result(self) -> RuntimeResult | None:
+        row = self.runtime_results_table.currentRow()
+        if row < 0:
+            return None
+        item = self.runtime_results_table.item(row, 0)
+        if item is None:
+            return None
+        result_index = item.data(Qt.UserRole)
+        if result_index is None:
+            return None
+        if 0 <= int(result_index) < len(self.runtime_results):
+            return self.runtime_results[int(result_index)]
+        return None
+
+    def update_runtime_preview(self) -> None:
+        result = self.get_selected_runtime_result()
+        if result is None:
+            self.runtime_preview.clear()
+            return
+
+        parts = [
+            f"Модель: {result.model_name}",
+            f"Статус: {result.status}",
+            "",
+            result.display_text,
+        ]
+        self.runtime_preview.setPlainText("\n".join(parts))
 
     def export_runtime_results(self, export_format: str) -> None:
         selected_results = [
@@ -789,7 +853,9 @@ class MainWindow(QMainWindow):
             for column, item in enumerate(values):
                 item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 self.saved_results_table.setItem(row_index, column, item)
+        self.saved_results_table.resizeRowsToContents()
         self.saved_results_table.setSortingEnabled(True)
+        self.update_saved_preview()
 
     def get_selected_saved_records(self) -> list[dict[str, Any]]:
         selected_rows = sorted(
@@ -803,6 +869,33 @@ class MainWindow(QMainWindow):
                 if record is not None:
                     records.append(record)
         return records
+
+    def get_current_saved_record(self) -> dict[str, Any] | None:
+        row = self.saved_results_table.currentRow()
+        if row < 0:
+            return None
+        item = self.saved_results_table.item(row, 0)
+        if item is None:
+            return None
+        return item.data(Qt.UserRole)
+
+    def update_saved_preview(self) -> None:
+        record = self.get_current_saved_record()
+        if record is None:
+            self.saved_preview.clear()
+            return
+
+        parts = [
+            f"Дата: {record.get('saved_at', '')}",
+            f"Модель: {record.get('model_name', '')}",
+            "",
+            "Промт:",
+            record.get("prompt_text", ""),
+            "",
+            "Ответ:",
+            record.get("response_text", ""),
+        ]
+        self.saved_preview.setPlainText("\n".join(parts))
 
     def export_saved_results(self, export_format: str) -> None:
         records = self.get_selected_saved_records()
