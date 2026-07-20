@@ -35,20 +35,34 @@ class NetworkResult:
 
 
 def load_environment(env_path: str | Path = DEFAULT_ENV_PATH) -> None:
-    resolved_path = Path(env_path)
-    if not resolved_path.exists():
-        return
+    root_dir = Path(__file__).parent
+    candidate_files = [
+        Path(env_path),
+        root_dir / ".env",
+        root_dir / ".env.local",
+        root_dir / ".env.development",
+        root_dir / ".env.dev",
+    ]
+    seen_paths: set[Path] = set()
 
-    if load_dotenv is not None:
-        load_dotenv(resolved_path, override=False)
-        return
-
-    for raw_line in resolved_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for candidate_file in candidate_files:
+        resolved_path = Path(candidate_file)
+        if resolved_path in seen_paths or not resolved_path.exists():
             continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+        seen_paths.add(resolved_path)
+
+        if load_dotenv is not None:
+            load_dotenv(resolved_path, override=False)
+            continue
+
+        for raw_line in resolved_path.read_text(
+            encoding="utf-8", errors="ignore"
+        ).splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 class NetworkClient:
@@ -243,6 +257,24 @@ class NetworkClient:
             aliases.append("DEEPSEEK_API_KEY")
         if "groq" in normalized_name or "groq.com" in normalized_url:
             aliases.append("GROQ_API_KEY")
+        if "huggingface" in normalized_name or "hugging face" in normalized_name:
+            aliases.extend(
+                [
+                    "HUGGINGFACE_API_TOKEN",
+                    "HUGGINGFACE_API_KEY",
+                    "HF_TOKEN",
+                    "HF_API_TOKEN",
+                ]
+            )
+        if "huggingface.co" in normalized_url:
+            aliases.extend(
+                [
+                    "HUGGINGFACE_API_TOKEN",
+                    "HUGGINGFACE_API_KEY",
+                    "HF_TOKEN",
+                    "HF_API_TOKEN",
+                ]
+            )
 
         for alias in aliases:
             api_key = os.getenv(alias)

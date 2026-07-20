@@ -71,6 +71,13 @@ DEFAULT_MODEL_CATALOG: tuple[ModelConfig, ...] = (
         is_active=True,
     ),
     ModelConfig(
+        name="Hugging Face Chat",
+        api_url="https://router.huggingface.co/v1/chat/completions",
+        api_id="meta-llama/Llama-3.1-8B-Instruct",
+        api_key_env="HUGGINGFACE_API_TOKEN",
+        is_active=False,
+    ),
+    ModelConfig(
         name="OpenAI GPT-4o mini",
         api_url="https://api.openai.com/v1/chat/completions",
         api_id="gpt-4o-mini",
@@ -95,16 +102,31 @@ DEFAULT_MODEL_CATALOG: tuple[ModelConfig, ...] = (
 
 
 def load_model_environment(env_path: str | Path | None = None) -> None:
-    resolved_path = Path(env_path or Path(__file__).with_name(".env"))
-    if not resolved_path.exists():
-        return
+    root_dir = Path(__file__).parent
+    candidate_files = (
+        [Path(env_path)] if env_path is not None else []
+    ) + [
+        root_dir / ".env",
+        root_dir / ".env.local",
+        root_dir / ".env.development",
+        root_dir / ".env.dev",
+    ]
 
-    for raw_line in resolved_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    seen_paths: set[Path] = set()
+    for candidate_file in candidate_files:
+        resolved_path = Path(candidate_file)
+        if resolved_path in seen_paths or not resolved_path.exists():
             continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+        seen_paths.add(resolved_path)
+
+        for raw_line in resolved_path.read_text(
+            encoding="utf-8", errors="ignore"
+        ).splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 def discover_env_variable_names(base_dir: str | Path | None = None) -> set[str]:
@@ -158,6 +180,24 @@ def suggest_api_key_env_name(
         aliases.extend(["DEEPSEEK_API_KEY", "DEEPSEEK_KEY"])
     if "groq" in normalized_name or "groq.com" in normalized_url:
         aliases.extend(["GROQ_API_KEY", "GROQ_KEY"])
+    if "hugging face" in normalized_name or "huggingface" in normalized_name:
+        aliases.extend(
+            [
+                "HUGGINGFACE_API_TOKEN",
+                "HUGGINGFACE_API_KEY",
+                "HF_TOKEN",
+                "HF_API_TOKEN",
+            ]
+        )
+    if "huggingface.co" in normalized_url:
+        aliases.extend(
+            [
+                "HUGGINGFACE_API_TOKEN",
+                "HUGGINGFACE_API_KEY",
+                "HF_TOKEN",
+                "HF_API_TOKEN",
+            ]
+        )
 
     for alias in aliases:
         if alias in available_set:
@@ -181,6 +221,14 @@ def suggest_api_key_env_name(
         if "GROQ" in normalized_name.upper() and "GROQ" in upper_name and (
             "KEY" in upper_name or "TOKEN" in upper_name
         ):
+            return env_name
+        if (
+            "HUGGINGFACE" in normalized_name.upper()
+            or "HUGGING FACE" in normalized_name.upper()
+            or "HUGGINGFACE.CO" in normalized_url.upper()
+        ) and (
+            "HUGGINGFACE" in upper_name or upper_name.startswith("HF_")
+        ) and ("KEY" in upper_name or "TOKEN" in upper_name):
             return env_name
 
     return None
