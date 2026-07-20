@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from app_paths import get_app_base_dir
 from db import Database
 
 
@@ -102,19 +104,33 @@ DEFAULT_MODEL_CATALOG: tuple[ModelConfig, ...] = (
 
 
 def load_model_environment(env_path: str | Path | None = None) -> None:
-    root_dir = Path(__file__).parent
-    candidate_files = (
-        [Path(env_path)] if env_path is not None else []
-    ) + [
-        root_dir / ".env",
-        root_dir / ".env.local",
-        root_dir / ".env.development",
-        root_dir / ".env.dev",
-    ]
+    candidate_files: list[Path] = []
+    if env_path is not None:
+        candidate_files.append(Path(env_path))
+
+    search_dirs: list[Path] = [Path.cwd()]
+    try:
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            search_dirs.extend([exe_dir, exe_dir.parent])
+    except Exception:
+        pass
+    try:
+        search_dirs.append(Path(__file__).resolve().parent)
+    except Exception:
+        pass
+
+    for directory in search_dirs:
+        for filename in (".env", ".env.local", ".env.development", ".env.dev"):
+            candidate_files.append(Path(directory) / filename)
 
     seen_paths: set[Path] = set()
     for candidate_file in candidate_files:
         resolved_path = Path(candidate_file)
+        try:
+            resolved_path = resolved_path.resolve()
+        except Exception:
+            pass
         if resolved_path in seen_paths or not resolved_path.exists():
             continue
         seen_paths.add(resolved_path)
@@ -130,7 +146,7 @@ def load_model_environment(env_path: str | Path | None = None) -> None:
 
 
 def discover_env_variable_names(base_dir: str | Path | None = None) -> set[str]:
-    root_dir = Path(base_dir or Path(__file__).parent)
+    root_dir = Path(base_dir) if base_dir is not None else get_app_base_dir()
     candidate_files = [
         root_dir / ".env",
         root_dir / ".env.local",

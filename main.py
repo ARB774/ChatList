@@ -35,11 +35,12 @@ from PyQt5.QtWidgets import (
 )
 
 from db import DEFAULT_SETTINGS, Database
+from app_paths import get_app_base_dir
 from models import ModelConfig, ModelRepository
-from network import NetworkClient, NetworkResult
+from network import NetworkClient, NetworkResult, get_env_search_paths
 
 
-LOGS_DIR = Path(__file__).with_name("logs")
+LOGS_DIR = get_app_base_dir() / "logs"
 LOG_FILE = LOGS_DIR / "chatlist.log"
 
 
@@ -982,9 +983,23 @@ class MainWindow(QMainWindow):
         self.model_active_checkbox.setChecked(False)
 
     def seed_default_models(self) -> None:
-        self.model_repository.seed_defaults()
-        self.refresh_models_table()
-        self.show_status("Дефолтные модели добавлены.")
+        try:
+            before = {model.name for model in self.model_repository.list_models()}
+            self.model_repository.seed_defaults()
+            after = {model.name for model in self.model_repository.list_models()}
+            added = sorted(after - before)
+            self.refresh_models_table()
+            if added:
+                self.show_status(f"Добавлено дефолтных моделей: {len(added)}.")
+            else:
+                self.show_status("Новых дефолтных моделей нет.")
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "ChatList",
+                f"Не удалось добавить дефолтные модели.\n\nОшибка: {exc}",
+            )
+            self.show_status("Ошибка при добавлении дефолтных моделей.")
 
     def activate_models_from_env(self) -> None:
         self.model_repository.auto_configure_api_key_env_names()
@@ -1065,6 +1080,28 @@ class MainWindow(QMainWindow):
             )
             QMessageBox.information(self, "Тест подключения", message)
             self.show_status(f"Тест подключения успешен для {model.name}.")
+            return
+
+        if result.status == "missing_api_key":
+            searched_paths = [str(path) for path in get_env_search_paths(None)]
+            loaded_paths = [str(path) for path in getattr(self.network_client, "loaded_env_files", [])]
+            hint = (
+                "Проверьте, что файл .env.local лежит либо рядом с main.py, либо рядом с ChatListApp.exe,\n"
+                "либо на уровень выше папки dist.\n\n"
+                f"Папка приложения: {get_app_base_dir()}\n"
+                f"Загружены env-файлы: {loaded_paths or ['(ничего)']}\n\n"
+                "Файлы, которые приложение пытается загрузить:\n- "
+                + "\n- ".join(searched_paths[:12])
+            )
+            if len(searched_paths) > 12:
+                hint += "\n- ...\n"
+            message = (
+                f"Тест подключения для {model.name} завершился со статусом {result.status}.\n\n"
+                f"Ошибка: {result.error_text or 'Нет дополнительной информации.'}\n\n"
+                f"{hint}"
+            )
+            QMessageBox.warning(self, "Тест подключения", message)
+            self.show_status(f"Тест подключения неуспешен для {model.name}: {result.status}.")
             return
 
         message = (

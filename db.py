@@ -5,8 +5,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from app_paths import get_app_base_dir
 
-DEFAULT_DB_PATH = Path(__file__).with_name("chatlist.db")
+
+DEFAULT_DB_PATH = get_app_base_dir() / "chatlist.db"
 DEFAULT_SETTINGS: dict[str, str] = {
     "system_prompt": "",
     "temperature": "0.7",

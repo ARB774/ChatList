@@ -88,6 +88,9 @@ out
 dist
 .output
 build/
+dist_*/
+build_*/
+ChatListApp_new.spec
 
 # Gatsby files
 .cache/

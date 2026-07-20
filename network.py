@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -19,10 +20,12 @@ try:
 except ImportError:  # pragma: no cover - manual fallback is used.
     load_dotenv = None
 
+from app_paths import get_app_base_dir, unique_paths
 from models import ModelConfig
 
 
-DEFAULT_ENV_PATH = Path(__file__).with_name(".env")
+DEFAULT_ENV_PATH = get_app_base_dir() / ".env"
+ENV_FILENAMES = (".env", ".env.local", ".env.development", ".env.dev")
 
 
 @dataclass(slots=True)
@@ -34,35 +37,51 @@ class NetworkResult:
     raw_response: dict[str, Any] | None = None
 
 
-def load_environment(env_path: str | Path = DEFAULT_ENV_PATH) -> None:
-    root_dir = Path(__file__).parent
-    candidate_files = [
-        Path(env_path),
-        root_dir / ".env",
-        root_dir / ".env.local",
-        root_dir / ".env.development",
-        root_dir / ".env.dev",
+def get_env_search_dirs() -> list[Path]:
+    dirs = [
+        Path.cwd(),
+        get_app_base_dir(),
+        get_app_base_dir().parent,
     ]
-    seen_paths: set[Path] = set()
+    try:
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            dirs.extend([exe_dir, exe_dir.parent])
+    except Exception:
+        pass
+    return unique_paths(dirs)
 
-    for candidate_file in candidate_files:
-        resolved_path = Path(candidate_file)
-        if resolved_path in seen_paths or not resolved_path.exists():
+
+def get_env_search_paths(env_path: str | Path | None = None) -> list[Path]:
+    paths: list[Path] = []
+    if env_path is not None:
+        paths.append(Path(env_path))
+    for directory in get_env_search_dirs():
+        for filename in ENV_FILENAMES:
+            paths.append(directory / filename)
+    return unique_paths(paths)
+
+
+def load_environment(env_path: str | Path = DEFAULT_ENV_PATH) -> list[Path]:
+    loaded: list[Path] = []
+    for candidate in get_env_search_paths(env_path):
+        if not candidate.exists():
             continue
-        seen_paths.add(resolved_path)
 
         if load_dotenv is not None:
-            load_dotenv(resolved_path, override=False)
+            load_dotenv(candidate, override=False)
+            loaded.append(candidate)
             continue
 
-        for raw_line in resolved_path.read_text(
-            encoding="utf-8", errors="ignore"
-        ).splitlines():
+        for raw_line in candidate.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = raw_line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
             os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+        loaded.append(candidate)
+
+    return loaded
 
 
 class NetworkClient:
@@ -71,7 +90,7 @@ class NetworkClient:
     ) -> None:
         self.env_path = Path(env_path)
         self.timeout = timeout
-        load_environment(self.env_path)
+        self.loaded_env_files = load_environment(self.env_path)
 
     def send_prompt(
         self,
