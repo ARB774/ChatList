@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatList</title>
+    <meta
+      name="description"
+      content="ChatList помогает отправлять один и тот же промт в несколько нейросетей, сравнивать ответы и скачивать готовую Windows-сборку."
+    />
+    <link rel="icon" href="../app_green.ico" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">ChatList</span>
+      </div>
+      <nav class="nav">
+        <a href="#features">Возможности</a>
+        <a href="#install">Установка</a>
+        <a href="#release">Релиз</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">GitHub Release + GitHub Pages</p>
+          <h1>Один промт. Несколько нейросетей. Один удобный релиз.</h1>
+          <p class="hero-text">
+            ChatList для Windows помогает сравнивать ответы моделей, сохранять
+            результаты и работать с локальной базой данных без сложной настройки.
+          </p>
+          <div class="hero-actions">
+            <a id="download-installer" class="button button-primary" href="#">Скачать установщик</a>
+            <a id="open-release" class="button button-secondary" href="#" target="_blank" rel="noreferrer">Открыть GitHub Release</a>
+          </div>
+          <dl class="meta">
+            <div>
+              <dt>Текущая версия</dt>
+              <dd id="app-version">1.0.0</dd>
+            </div>
+            <div>
+              <dt>Платформа</dt>
+              <dd>Windows</dd>
+            </div>
+            <div>
+              <dt>Форматы</dt>
+              <dd>Installer + exe</dd>
+            </div>
+          </dl>
+        </div>
+
+        <aside class="hero-card">
+          <p class="card-title">Что получает пользователь</p>
+          <ul class="bullet-list">
+            <li>Установщик для Windows</li>
+            <li>Ссылку на все релизы проекта</li>
+            <li>Краткую инструкцию по `.env.local`</li>
+            <li>Понятную страницу загрузки без лишних шагов</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Возможности</p>
+          <h2>Что умеет ChatList</h2>
+        </div>
+        <div class="grid grid-3">
+          <article class="feature-card">
+            <h3>Сравнение моделей</h3>
+            <p>Отправляй один промт сразу в несколько нейросетей и сравнивай ответы в едином окне.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Сохранение результатов</h3>
+            <p>Храни полезные ответы и промты в локальной SQLite-базе с быстрым доступом из интерфейса.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Работа с релизами</h3>
+            <p>Скачивай установщик и следи за версиями прямо со страницы проекта на GitHub Pages.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="install" class="section section-accent">
+        <div class="section-heading">
+          <p class="eyebrow">Установка</p>
+          <h2>Как установить и запустить</h2>
+        </div>
+        <ol class="steps">
+          <li>Скачай `ChatListApp_Setup_<span data-version-inline>1.0.0</span>.exe` или открой страницу релиза.</li>
+          <li>Установи приложение через мастер установки.</li>
+          <li>Создай файл `.env.local` рядом с `ChatListApp.exe` или в `C:\Users\%USERNAME%\AppData\Local\ChatList\`.</li>
+          <li>Добавь нужные ключи API и запусти `ChatList`.</li>
+        </ol>
+        <pre class="code-block"><code>OPENROUTER_API_KEY=ваш_ключ
+HUGGINGFACE_API_TOKEN=ваш_ключ</code></pre>
+      </section>
+
+      <section id="release" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Для разработчика</p>
+          <h2>Как публиковать новые версии</h2>
+        </div>
+        <div class="grid grid-2">
+          <article class="release-card">
+            <h3>GitHub Release</h3>
+            <p>Создай тег `vX.Y.Z`, собери `exe` и установщик, затем опубликуй релиз с бинарными файлами.</p>
+            <a id="open-repo" class="text-link" href="#" target="_blank" rel="noreferrer">Открыть репозиторий</a>
+          </article>
+          <article class="release-card">
+            <h3>GitHub Pages</h3>
+            <p>Лендинг публикуется из каталога `docs/` и может автоматически выкатываться через GitHub Actions.</p>
+            <a class="text-link" href="https://docs.github.com/pages" target="_blank" rel="noreferrer">Документация GitHub Pages</a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>ChatList <span id="footer-version">1.0.0</span></p>
+      <a id="footer-release-link" href="#" target="_blank" rel="noreferrer">Последний релиз</a>
+    </footer>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
+

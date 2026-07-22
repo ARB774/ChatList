@@ -20,11 +20,11 @@ try:
 except ImportError:  # pragma: no cover - manual fallback is used.
     load_dotenv = None
 
-from app_paths import get_app_base_dir, unique_paths
+from app_paths import get_app_base_dir, get_app_data_dir, unique_paths
 from models import ModelConfig
 
 
-DEFAULT_ENV_PATH = get_app_base_dir() / ".env"
+DEFAULT_ENV_PATH = get_app_data_dir() / ".env"
 ENV_FILENAMES = (".env", ".env.local", ".env.development", ".env.dev")
 
 
@@ -40,6 +40,7 @@ class NetworkResult:
 def get_env_search_dirs() -> list[Path]:
     dirs = [
         Path.cwd(),
+        get_app_data_dir(),
         get_app_base_dir(),
         get_app_base_dir().parent,
     ]

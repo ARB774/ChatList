@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from app_paths import get_app_base_dir
+from app_paths import get_app_base_dir, get_app_data_dir
 from db import Database
 
 
@@ -122,7 +122,7 @@ def load_model_environment(env_path: str | Path | None = None) -> None:
     if env_path is not None:
         candidate_files.append(Path(env_path))
 
-    search_dirs: list[Path] = [Path.cwd()]
+    search_dirs: list[Path] = [Path.cwd(), get_app_data_dir()]
     try:
         if getattr(sys, "frozen", False):
             exe_dir = Path(sys.executable).resolve().parent
@@ -160,13 +160,27 @@ def load_model_environment(env_path: str | Path | None = None) -> None:
 
 
 def discover_env_variable_names(base_dir: str | Path | None = None) -> set[str]:
-    root_dir = Path(base_dir) if base_dir is not None else get_app_base_dir()
-    candidate_files = [
-        root_dir / ".env",
-        root_dir / ".env.local",
-        root_dir / ".env.development",
-        root_dir / ".env.dev",
-    ]
+    candidate_files: list[Path] = []
+    if base_dir is not None:
+        root_dir = Path(base_dir)
+        candidate_files.extend(
+            [
+                root_dir / ".env",
+                root_dir / ".env.local",
+                root_dir / ".env.development",
+                root_dir / ".env.dev",
+            ]
+        )
+    else:
+        for root_dir in [get_app_data_dir(), get_app_base_dir()]:
+            candidate_files.extend(
+                [
+                    root_dir / ".env",
+                    root_dir / ".env.local",
+                    root_dir / ".env.development",
+                    root_dir / ".env.dev",
+                ]
+            )
     names = set(os.environ.keys())
 
     for candidate_file in candidate_files:

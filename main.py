@@ -39,14 +39,14 @@ from PyQt5.QtWidgets import (
 )
 
 from db import DEFAULT_SETTINGS, Database
-from app_paths import get_app_base_dir
+from app_paths import get_app_base_dir, get_app_data_dir
 from models import ModelConfig, ModelRepository
 from network import NetworkClient, NetworkResult, get_env_search_paths
+from version import __version__
 
 
-LOGS_DIR = get_app_base_dir() / "logs"
+LOGS_DIR = get_app_data_dir() / "logs"
 LOG_FILE = LOGS_DIR / "chatlist.log"
-APP_VERSION = "1.0"
 
 
 @dataclass(slots=True)
@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         self._results_table_updating = False
         self._worker: RequestWorker | None = None
 
-        self.setWindowTitle("ChatList")
+        self.setWindowTitle(f"ChatList {__version__}")
         self._setup_ui()
         self.apply_appearance_settings()
         self._setup_window_size()
@@ -609,7 +609,7 @@ class MainWindow(QMainWindow):
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         with LOG_FILE.open("a", encoding="utf-8") as log_file:
             timestamp = datetime.now().isoformat(timespec="seconds")
-            log_file.write(f"{timestamp} | {message}\n")
+            log_file.write(f"{timestamp} | v{__version__} | {message}\n")
 
     def show_status(self, message: str) -> None:
         self.status_bar.showMessage(message, 5000)
@@ -689,7 +689,7 @@ QHeaderView::section {
 
     def show_about_dialog(self) -> None:
         about_text = (
-            f"ChatList {APP_VERSION}\n\n"
+            f"ChatList {__version__}\n\n"
             "Приложение отправляет один и тот же промт в несколько нейросетей, "
             "показывает ответы в общей таблице и сохраняет выбранные результаты в SQLite.\n\n"
             f"База данных: {self.database.db_path}\n"
@@ -1432,9 +1432,11 @@ QHeaderView::section {
             searched_paths = [str(path) for path in get_env_search_paths(None)]
             loaded_paths = [str(path) for path in getattr(self.network_client, "loaded_env_files", [])]
             hint = (
-                "Проверьте, что файл .env.local лежит либо рядом с main.py, либо рядом с ChatListApp.exe,\n"
-                "либо на уровень выше папки dist.\n\n"
+                "Проверьте, что файл .env.local лежит рядом с ChatListApp.exe,\n"
+                "либо в пользовательской папке данных ChatList,\n"
+                "либо рядом с main.py во время запуска из исходников.\n\n"
                 f"Папка приложения: {get_app_base_dir()}\n"
+                f"Папка данных: {get_app_data_dir()}\n"
                 f"Загружены env-файлы: {loaded_paths or ['(ничего)']}\n\n"
                 "Файлы, которые приложение пытается загрузить:\n- "
                 + "\n- ".join(searched_paths[:12])
